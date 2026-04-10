@@ -7,5 +7,25 @@
     <link>https://raw.githubusercontent.com/fayazara/opencode-stats/main/appcast.xml</link>
     <language>en</language>
 
+    <item>
+      <title>OpenCode Stats 0.1</title>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Fri, 10 Apr 2026 05:36:37 +0000</pubDate>
+      <description><![CDATA[
+        <h2>What's New in 0.1</h2>
+        <ul>
+          <li>OpenStatus v0.1</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/fayazara/opencode-stats/releases/download/v0.1/OpenCode-Stats.dmg"
+        type="application/octet-stream"
+        sparkle:edSignature="TRbBPXA5mr7uDGCDezic61/CbeM6Fx38vvUBB2moANMOZAiBbdtt+/NcOKC2p3tsjeBkGAIwp7eNAa/n1ZsvCg=="
+        length="2803665"
+      />
+    </item>
+
   </channel>
 </rss>
