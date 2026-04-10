@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/fayazara/opencode-stats/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>MA/6n0fqT0T2updDlkXr8BjhJKoHWik9uf6Lh5pUG7U=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+</dict>
+</plist>
