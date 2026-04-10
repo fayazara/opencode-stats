@@ -12,6 +12,26 @@
       <sparkle:version>1</sparkle:version>
       <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Fri, 10 Apr 2026 05:38:04 +0000</pubDate>
+      <description><![CDATA[
+        <h2>What's New in 0.1</h2>
+        <ul>
+          <li>v0.1 release</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/fayazara/opencode-stats/releases/download/v0.1/OpenCode-Stats.dmg"
+        type="application/octet-stream"
+        sparkle:edSignature="vQSb5OR961mLeUry0FzeKlmvflXRtmqG3HKmughdKJjTr92hxPYwaJG1qcczZBS+DB+tYlVNm4zuNQRtIDrfBg=="
+        length="2803646"
+      />
+    </item>
+
+    <item>
+      <title>OpenCode Stats 0.1</title>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
       <pubDate>Fri, 10 Apr 2026 05:36:37 +0000</pubDate>
       <description><![CDATA[
         <h2>What's New in 0.1</h2>
