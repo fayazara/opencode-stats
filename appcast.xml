@@ -8,6 +8,32 @@
     <language>en</language>
 
     <item>
+      <title>OpenCode Stats 0.3</title>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Mon, 13 Apr 2026 04:56:51 +0000</pubDate>
+      <description><![CDATA[
+        <h2>What's New in 0.3</h2>
+        <ul>
+          <li>- Event-driven architecture replacing the 5-min polling timer</li>
+          <li>- All energy optimizations (debounced popover refresh, conditional @Published updates, .utility QoS, narrowed FS event mask)</li>
+          <li>- Session and project actions (continue, delete, open in terminal/editor)</li>
+          <li>- Live activity badges</li>
+          <li>- Settings window</li>
+          <li>- Popover background customization</li>
+          <li>- TextEdit removal</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/fayazara/opencode-stats/releases/download/v0.3/OpenCode-Stats.dmg"
+        type="application/octet-stream"
+        sparkle:edSignature="pkRW36O4j9zYiUt0gJ0EVCtgwplCJyqbuGnCEOUI3UTpbHzsvxHoAwY7OvRLPuBV9PVMZrtXYxigdYsnOSqtDQ=="
+        length="2972459"
+      />
+    </item>
+
+    <item>
       <title>OpenCode Stats 0.1</title>
       <sparkle:version>1</sparkle:version>
       <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
