@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import SQLite3
+import Darwin
 
 // MARK: - Data Models
 
@@ -46,9 +47,11 @@ struct RecentSession: Identifiable {
     let id: String
     let title: String
     let projectName: String
+    let directory: String
+    let slug: String
     let cost: Double
     let messageCount: Int
-    let date: Date
+    let lastUpdated: Date
     let provider: String
     let model: String
 }
@@ -92,6 +95,15 @@ struct ProjectStats: Identifiable {
     let outputTokens: Int64
     let cacheRead: Int64
     let cacheWrite: Int64
+    let latestSessionID: String?
+    let latestSessionTitle: String?
+    let latestSessionUpdatedAt: Date?
+}
+
+struct OpenCodeLiveState {
+    var todayCost: Double = 0
+    var sessionUpdates: [String: Date] = [:]
+    var projectUpdates: [String: Date] = [:]
 }
 
 // MARK: - Database Service
@@ -101,8 +113,16 @@ class OpenCodeDatabase: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var daysFilter: Int? = nil // nil = all time
+    @Published private(set) var liveState = OpenCodeLiveState()
 
     private var db: OpaquePointer?
+    private let watcherQueue = DispatchQueue(label: "OpenCodeDatabase.Watcher")
+    private var watchSources: [DispatchSourceFileSystemObject] = []
+    private var liveRefreshWorkItem: DispatchWorkItem?
+    private var popoverRefreshWorkItem: DispatchWorkItem?
+    private var refreshQueued = false
+    private var fallbackRefreshTimer: Timer?
+    private var isPopoverVisible = false
 
     static let shared = OpenCodeDatabase()
 
@@ -115,13 +135,63 @@ class OpenCodeDatabase: ObservableObject {
         FileManager.default.fileExists(atPath: dbPath)
     }
 
+    var walPath: String {
+        "\(dbPath)-wal"
+    }
+
     static var isDemoMode: Bool {
         CommandLine.arguments.contains("-DEMO_MODE")
     }
 
     init() {}
 
-    func refresh() {
+    deinit {
+        stopMonitoring()
+    }
+
+    func startMonitoring() {
+        refresh()
+        refreshLiveState()
+        configureWatchers()
+        startFallbackRefreshTimer()
+    }
+
+    func stopMonitoring() {
+        DispatchQueue.main.async { [weak self] in
+            self?.fallbackRefreshTimer?.invalidate()
+            self?.fallbackRefreshTimer = nil
+            self?.popoverRefreshWorkItem?.cancel()
+            self?.popoverRefreshWorkItem = nil
+        }
+
+        watcherQueue.async { [weak self] in
+            guard let self else { return }
+            self.liveRefreshWorkItem?.cancel()
+            self.liveRefreshWorkItem = nil
+            let sources = self.watchSources
+            self.watchSources.removeAll()
+            sources.forEach { $0.cancel() }
+        }
+    }
+
+    func setPopoverVisible(_ visible: Bool) {
+        isPopoverVisible = visible
+        if visible {
+            refresh()
+        }
+    }
+
+    func refresh(backgroundTriggered: Bool = false) {
+        guard dbExists || Self.isDemoMode else {
+            error = DatabaseError.notFound.localizedDescription
+            return
+        }
+
+        if isLoading {
+            refreshQueued = true
+            return
+        }
+
         isLoading = true
         error = nil
 
@@ -133,21 +203,93 @@ class OpenCodeDatabase: ObservableObject {
             return
         }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        let qos: DispatchQoS.QoSClass = backgroundTriggered ? .utility : .userInitiated
+        DispatchQueue.global(qos: qos).async { [weak self] in
             guard let self else { return }
             do {
                 let result = try self.loadStats()
                 DispatchQueue.main.async {
                     self.stats = result
                     self.isLoading = false
+                    if self.refreshQueued {
+                        self.refreshQueued = false
+                        self.refresh()
+                    }
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.error = error.localizedDescription
                     self.isLoading = false
+                    if self.refreshQueued {
+                        self.refreshQueued = false
+                        self.refresh()
+                    }
                 }
             }
         }
+    }
+
+    func sessionLastUpdated(_ session: RecentSession) -> Date {
+        liveState.sessionUpdates[session.id] ?? session.lastUpdated
+    }
+
+    func refreshLiveSnapshot() {
+        refreshLiveState()
+    }
+
+    func sessionActivityState(_ session: RecentSession) -> SessionActivityState {
+        SessionActivityState(lastUpdated: sessionLastUpdated(session))
+    }
+
+    func projectLastUpdated(_ project: ProjectStats) -> Date? {
+        liveState.projectUpdates[project.id] ?? project.latestSessionUpdatedAt
+    }
+
+    func projectActivityState(_ project: ProjectStats) -> SessionActivityState? {
+        guard let lastUpdated = projectLastUpdated(project) else { return nil }
+        return SessionActivityState(lastUpdated: lastUpdated)
+    }
+
+    private func refreshLiveState() {
+        guard dbExists, !Self.isDemoMode else { return }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            do {
+                let liveState = try self.loadLiveState()
+                DispatchQueue.main.async {
+                    self.liveState = liveState
+
+                    // Only publish stats update if todayCost actually changed
+                    if liveState.todayCost != self.stats.todayCost {
+                        var updatedStats = self.stats
+                        updatedStats.todayCost = liveState.todayCost
+                        self.stats = updatedStats
+                    }
+
+                    if self.isPopoverVisible {
+                        self.schedulePopoverRefresh()
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// Debounced full refresh for when popover is visible (5 second debounce).
+    /// Prevents cascade of heavy SQL queries during active coding sessions.
+    private func schedulePopoverRefresh() {
+        popoverRefreshWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refresh(backgroundTriggered: true)
+        }
+
+        popoverRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: workItem)
     }
 
     private func loadStats() throws -> OpenCodeStats {
@@ -383,7 +525,25 @@ class OpenCodeDatabase: ObservableObject {
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.input') ELSE 0 END), 0) as input_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.output') ELSE 0 END), 0) as output_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') ELSE 0 END), 0) as cache_read,
-                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') ELSE 0 END), 0) as cache_write
+                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') ELSE 0 END), 0) as cache_write,
+                    (SELECT s2.id
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_id,
+                    (SELECT s2.title
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_title,
+                    (SELECT s2.time_updated
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_updated
                 FROM project p
                 JOIN session s ON s.project_id = p.id AND s.parent_id IS NULL
                 LEFT JOIN message m ON m.session_id = s.id
@@ -404,7 +564,25 @@ class OpenCodeDatabase: ObservableObject {
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.input') ELSE 0 END), 0) as input_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.output') ELSE 0 END), 0) as output_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') ELSE 0 END), 0) as cache_read,
-                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') ELSE 0 END), 0) as cache_write
+                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') ELSE 0 END), 0) as cache_write,
+                    (SELECT s2.id
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_id,
+                    (SELECT s2.title
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_title,
+                    (SELECT s2.time_updated
+                     FROM session s2
+                     WHERE s2.project_id = p.id
+                       AND s2.parent_id IS NULL
+                     ORDER BY s2.time_updated DESC
+                     LIMIT 1) as latest_session_updated
                 FROM project p
                 JOIN session s ON s.project_id = p.id AND s.parent_id IS NULL
                 LEFT JOIN message m ON m.session_id = s.id
@@ -417,6 +595,7 @@ class OpenCodeDatabase: ObservableObject {
         stats.projects = projectRows.map { row in
             let worktree = row[1] as? String ?? ""
             let name = (row[2] as? String) ?? URL(fileURLWithPath: worktree).lastPathComponent
+            let latestUpdatedMs = row[12] as? Int64 ?? (row[12] as? Int).map(Int64.init)
             return ProjectStats(
                 id: row[0] as? String ?? "",
                 name: name,
@@ -427,7 +606,10 @@ class OpenCodeDatabase: ObservableObject {
                 inputTokens: (row[6] as? Int64) ?? 0,
                 outputTokens: (row[7] as? Int64) ?? 0,
                 cacheRead: (row[8] as? Int64) ?? 0,
-                cacheWrite: (row[9] as? Int64) ?? 0
+                cacheWrite: (row[9] as? Int64) ?? 0,
+                latestSessionID: row[10] as? String,
+                latestSessionTitle: row[11] as? String,
+                latestSessionUpdatedAt: latestUpdatedMs.map { Date(timeIntervalSince1970: Double($0) / 1000) }
             )
         }
 
@@ -473,7 +655,8 @@ class OpenCodeDatabase: ObservableObject {
         // Recent sessions (last 15)
         let recentQuery = """
             SELECT s.id, s.title, p.worktree, p.name,
-                   s.time_created,
+                   s.slug,
+                   s.time_updated,
                    COALESCE((SELECT SUM(json_extract(m.data, '$.cost'))
                              FROM message m
                              WHERE m.session_id = s.id
@@ -494,27 +677,153 @@ class OpenCodeDatabase: ObservableObject {
             FROM session s
             JOIN project p ON p.id = s.project_id
             WHERE s.parent_id IS NULL
-            ORDER BY s.time_created DESC
+            ORDER BY s.time_updated DESC
             LIMIT 15
         """
         let recentRows = try queryRows(db: db, sql: recentQuery)
         stats.recentSessions = recentRows.map { row in
             let worktree = row[2] as? String ?? ""
             let projectName = (row[3] as? String) ?? URL(fileURLWithPath: worktree).lastPathComponent
-            let ts = row[4] as? Int64 ?? (row[4] as? Int).map({ Int64($0) }) ?? 0
+            let ts = row[5] as? Int64 ?? (row[5] as? Int).map({ Int64($0) }) ?? 0
             return RecentSession(
                 id: row[0] as? String ?? "",
                 title: row[1] as? String ?? "Untitled",
                 projectName: projectName,
-                cost: row[5] as? Double ?? 0,
-                messageCount: row[6] as? Int ?? 0,
-                date: Date(timeIntervalSince1970: Double(ts) / 1000),
-                provider: row[7] as? String ?? "",
-                model: row[8] as? String ?? ""
+                directory: worktree,
+                slug: row[4] as? String ?? "",
+                cost: row[6] as? Double ?? 0,
+                messageCount: row[7] as? Int ?? 0,
+                lastUpdated: Date(timeIntervalSince1970: Double(ts) / 1000),
+                provider: row[8] as? String ?? "",
+                model: row[9] as? String ?? ""
             )
         }
 
         return stats
+    }
+
+    private func loadLiveState() throws -> OpenCodeLiveState {
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(dbPath, &db, flags, nil) == SQLITE_OK else {
+            throw DatabaseError.cannotOpen
+        }
+        defer { sqlite3_close(db) }
+
+        var liveState = OpenCodeLiveState()
+
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let todayMs = Int64(todayStart.timeIntervalSince1970 * 1000)
+        let todayQuery = """
+            SELECT COALESCE(SUM(json_extract(m.data, '$.cost')), 0)
+            FROM message m
+            JOIN session s ON s.id = m.session_id
+            WHERE json_extract(m.data, '$.role') = 'assistant'
+              AND s.parent_id IS NULL
+              AND m.time_created >= \(todayMs)
+        """
+
+        if let row = try querySingle(db: db, sql: todayQuery) {
+            liveState.todayCost = row[0] as? Double ?? 0
+        }
+
+        let sessionActivityQuery = """
+            SELECT id, time_updated
+            FROM session
+            WHERE parent_id IS NULL
+            ORDER BY time_updated DESC
+            LIMIT 50
+        """
+        let sessionRows = try queryRows(db: db, sql: sessionActivityQuery)
+        liveState.sessionUpdates = sessionRows.reduce(into: [:]) { result, row in
+            let id = row[0] as? String ?? ""
+            let timestamp = row[1] as? Int64 ?? (row[1] as? Int).map(Int64.init) ?? 0
+            guard !id.isEmpty else { return }
+            result[id] = Date(timeIntervalSince1970: Double(timestamp) / 1000)
+        }
+
+        let projectActivityQuery = """
+            SELECT p.id, MAX(s.time_updated)
+            FROM project p
+            JOIN session s ON s.project_id = p.id
+            WHERE s.parent_id IS NULL
+            GROUP BY p.id
+        """
+        let projectRows = try queryRows(db: db, sql: projectActivityQuery)
+        liveState.projectUpdates = projectRows.reduce(into: [:]) { result, row in
+            let id = row[0] as? String ?? ""
+            let timestamp = row[1] as? Int64 ?? (row[1] as? Int).map(Int64.init) ?? 0
+            guard !id.isEmpty, timestamp > 0 else { return }
+            result[id] = Date(timeIntervalSince1970: Double(timestamp) / 1000)
+        }
+
+        return liveState
+    }
+
+    private func configureWatchers() {
+        watcherQueue.async { [weak self] in
+            guard let self else { return }
+
+            let sources = self.watchSources
+            self.watchSources.removeAll()
+            sources.forEach { $0.cancel() }
+
+            self.makeWatcher(for: self.dbPath)
+            self.makeWatcher(for: self.walPath)
+        }
+    }
+
+    private func makeWatcher(for path: String) {
+        guard FileManager.default.fileExists(atPath: path) else { return }
+
+        let fileDescriptor = open(path, O_EVTONLY)
+        guard fileDescriptor >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .extend, .rename, .delete],
+            queue: watcherQueue
+        )
+
+        source.setEventHandler { [weak self] in
+            guard let self else { return }
+            let events = source.data
+
+            if events.contains(.delete) || events.contains(.rename) {
+                self.configureWatchers()
+            }
+
+            self.scheduleLiveRefresh()
+        }
+
+        source.setCancelHandler {
+            close(fileDescriptor)
+        }
+
+        watchSources.append(source)
+        source.resume()
+    }
+
+    private func scheduleLiveRefresh() {
+        liveRefreshWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshLiveState()
+        }
+
+        liveRefreshWorkItem = workItem
+        watcherQueue.asyncAfter(deadline: .now() + 2.0, execute: workItem)
+    }
+
+    private func startFallbackRefreshTimer() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.fallbackRefreshTimer?.invalidate()
+            self.fallbackRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
+                self?.refresh(backgroundTriggered: true)
+                self?.refreshLiveState()
+            }
+        }
     }
 
     // MARK: - MCP Config
@@ -651,7 +960,10 @@ class OpenCodeDatabase: ObservableObject {
                 inputTokens: Int64.random(in: 1_000_000...10_000_000),
                 outputTokens: Int64.random(in: 200_000...2_000_000),
                 cacheRead: Int64.random(in: 5_000_000...50_000_000),
-                cacheWrite: Int64.random(in: 500_000...5_000_000)
+                cacheWrite: Int64.random(in: 500_000...5_000_000),
+                latestSessionID: UUID().uuidString,
+                latestSessionTitle: "Latest work on \(name)",
+                latestSessionUpdatedAt: Date().addingTimeInterval(Double.random(in: -14_400 ... 0))
             )
         }
 
@@ -687,8 +999,10 @@ class OpenCodeDatabase: ObservableObject {
         ].map { (title, project, cost, msgs, hoursAgo) in
             RecentSession(
                 id: UUID().uuidString, title: title, projectName: project,
+                directory: "/Users/fayazahmed/Developer/\(project)",
+                slug: UUID().uuidString.lowercased().components(separatedBy: "-").first ?? "demo",
                 cost: cost, messageCount: msgs,
-                date: Date().addingTimeInterval(hoursAgo * 3600),
+                lastUpdated: Date().addingTimeInterval(hoursAgo * 3600),
                 provider: "anthropic", model: "claude-sonnet-4"
             )
         }

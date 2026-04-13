@@ -12,6 +12,7 @@ import Charts
 
 struct StatsView: View {
     @StateObject private var db = OpenCodeDatabase.shared
+    @StateObject private var control = OpenCodeController.shared
     @State private var selectedTab: Tab = .overview
 
     enum Tab: String, CaseIterable {
@@ -39,15 +40,49 @@ struct StatsView: View {
                 ScrollView(showsIndicators: false) {
                     switch selectedTab {
                     case .overview: OverviewTab(stats: db.stats)
-                    case .sessions: SessionsTab(sessions: db.stats.recentSessions)
+                    case .sessions: SessionsTab(db: db, control: control, sessions: db.stats.recentSessions)
                     case .models: ModelsTab(stats: db.stats)
-                    case .projects: ProjectsTab(stats: db.stats)
+                    case .projects: ProjectsTab(db: db, control: control, stats: db.stats)
                     }
                 }
             }
         }
         .frame(width: 360, height: 520)
-        .onAppear { db.refresh() }
+        .background(Color(nsColor: PopoverAppearance.backgroundColor))
+        .onAppear {
+            if db.stats.sessionCount == 0 && !db.isLoading {
+                db.refresh()
+            }
+        }
+        .alert(
+            "Delete Session?",
+            isPresented: Binding(
+                get: { control.pendingDeletionSession != nil },
+                set: { if !$0 { control.pendingDeletionSession = nil } }
+            ),
+            presenting: control.pendingDeletionSession
+        ) { session in
+            Button("Delete", role: .destructive) {
+                control.confirmDeletePendingSession {
+                    db.refresh()
+                    db.refreshLiveSnapshot()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { session in
+            Text("This will remove \"\(session.title)\" from OpenCode.")
+        }
+        .alert(
+            "Action Failed",
+            isPresented: Binding(
+                get: { control.actionError != nil },
+                set: { if !$0 { control.actionError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(control.actionError ?? "Something went wrong.")
+        }
     }
 
     private var header: some View {
@@ -465,6 +500,8 @@ struct ModelsTab: View {
 // MARK: - Sessions Tab
 
 struct SessionsTab: View {
+    @ObservedObject var db: OpenCodeDatabase
+    @ObservedObject var control: OpenCodeController
     let sessions: [RecentSession]
 
     var body: some View {
@@ -473,61 +510,11 @@ struct SessionsTab: View {
                 EmptyState(icon: "bubble.left.and.bubble.right", message: "No recent sessions")
             } else {
                 GroupedList(items: sessions, dividerLeading: 12) { session in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(session.title)
-                                .font(.system(size: 11, weight: .semibold))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(Formatters.currency(session.cost))
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        }
-                        HStack(spacing: 6) {
-                            ProviderIcon(provider: session.provider, model: session.model, size: 10)
-                            Text(session.model)
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-
-                            Text("·")
-                                .foregroundStyle(.quaternary)
-
-                            Image(systemName: "folder")
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
-                            Text(session.projectName)
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            Text("\(session.messageCount) msgs")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.tertiary)
-
-                            Text(timeAgo(session.date))
-                                .font(.system(size: 9))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
+                    SessionRow(db: db, control: control, session: session)
                 }
             }
         }
         .padding(12)
-    }
-
-    private func timeAgo(_ date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
-        if interval < 60 { return "just now" }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
-        let days = Int(interval / 86400)
-        if days == 1 { return "yesterday" }
-        if days < 7 { return "\(days)d ago" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
     }
 }
 
@@ -581,6 +568,8 @@ struct DailyCostChart: View {
 // MARK: - Projects Tab
 
 struct ProjectsTab: View {
+    @ObservedObject var db: OpenCodeDatabase
+    @ObservedObject var control: OpenCodeController
     let stats: OpenCodeStats
 
     var body: some View {
@@ -589,7 +578,7 @@ struct ProjectsTab: View {
                 EmptyState(icon: "folder", message: "No project data")
             } else {
                 GroupedList(items: stats.projects, dividerLeading: 40) { project in
-                    ProjectRow(project: project)
+                    ProjectRow(db: db, control: control, project: project)
                 }
             }
         }
@@ -597,40 +586,202 @@ struct ProjectsTab: View {
     }
 }
 
+struct SessionRow: View {
+    @ObservedObject var db: OpenCodeDatabase
+    @ObservedObject var control: OpenCodeController
+    let session: RecentSession
+    @State private var isHovered = false
+
+    private let statusColumnWidth: CGFloat = 48
+    private let costColumnWidth: CGFloat = 52
+    private let menuColumnWidth: CGFloat = 20
+    private let actionSpacing: CGFloat = 8
+
+    private var status: SessionActivityState {
+        db.sessionActivityState(session)
+    }
+
+    private var lastUpdated: Date {
+        db.sessionLastUpdated(session)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Text(session.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                ActivityBadge(state: status)
+                    .frame(width: statusColumnWidth, alignment: .leading)
+
+                costAndMenu
+            }
+
+            HStack(spacing: 6) {
+                ProviderIcon(provider: session.provider, model: session.model, size: 10)
+                Text(session.model)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text("·")
+                    .foregroundStyle(.quaternary)
+
+                Image(systemName: "folder")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                Text(session.projectName)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            HStack(spacing: 10) {
+                MetadataPill(systemImage: "bubble.left.and.bubble.right", text: "\(session.messageCount) messages")
+                MetadataPill(systemImage: "clock", text: Formatters.relative(lastUpdated))
+                Spacer(minLength: 0)
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var costAndMenu: some View {
+        HStack(spacing: actionSpacing) {
+            Text(Formatters.currency(session.cost))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .frame(width: costColumnWidth, alignment: .trailing)
+
+            sessionMenu
+                .frame(width: menuColumnWidth, alignment: .trailing)
+        }
+        .frame(width: costColumnWidth + actionSpacing + menuColumnWidth, alignment: .trailing)
+        .offset(x: isHovered ? 0 : menuColumnWidth + actionSpacing)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+
+    private var sessionMenu: some View {
+        Menu {
+            Button("Continue in Terminal") {
+                control.continueSession(session)
+            }
+            Button("Open Project in Finder") {
+                control.openInFinder(session.directory)
+            }
+            Button("Open Project in Terminal") {
+                control.openInTerminal(session.directory)
+            }
+            Menu("Open Project In") {
+                ForEach(ProjectOpenApp.allCases) { app in
+                    Button(app.displayName) {
+                        control.openProject(session.directory, in: app)
+                    }
+                    .disabled(!app.isInstalled)
+                }
+            }
+            Button("Copy Session ID") {
+                control.copyToClipboard(session.id)
+            }
+            Button("Copy Session Slug") {
+                control.copyToClipboard(session.slug)
+            }
+            Divider()
+            Button("Delete Session", role: .destructive) {
+                control.requestDelete(session)
+            }
+            .disabled(control.isDeletingSession)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .opacity(isHovered ? 1 : 0)
+        .allowsHitTesting(isHovered)
+    }
+}
+
+struct MetadataPill: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text)
+                .lineLimit(1)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 8))
+        }
+        .font(.system(size: 9))
+        .foregroundStyle(.tertiary)
+    }
+}
+
 struct ProjectRow: View {
+    @ObservedObject var db: OpenCodeDatabase
+    @ObservedObject var control: OpenCodeController
     let project: ProjectStats
     @State private var isExpanded = false
+    @State private var isHovered = false
+
+    private let statusColumnWidth: CGFloat = 48
+    private let costColumnWidth: CGFloat = 58
+    private let menuColumnWidth: CGFloat = 20
+    private let actionSpacing: CGFloat = 8
+
+    private var activityState: SessionActivityState? {
+        db.projectActivityState(project)
+    }
+
+    private var latestUpdated: Date? {
+        db.projectLastUpdated(project)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.blue)
-                        .frame(width: 20)
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.blue)
+                            .frame(width: 20)
 
-                    Text(project.name)
-                        .font(.system(size: 11, weight: .semibold))
-                        .lineLimit(1)
+                        Text(project.name)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
 
-                    Spacer()
-
-                    Text(Formatters.currency(project.cost))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        Spacer()
+                    }
                 }
+                .buttonStyle(.plain)
+
+                if let activityState {
+                    ActivityBadge(state: activityState)
+                        .frame(width: statusColumnWidth, alignment: .trailing)
+                } else {
+                    Color.clear
+                        .frame(width: statusColumnWidth)
+                }
+
+                costAndMenu
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 VStack(spacing: 0) {
+                    if let latestSessionTitle = project.latestSessionTitle, !latestSessionTitle.isEmpty {
+                        DetailRow(label: "Latest Session", value: latestSessionTitle)
+                    }
+                    if let latestUpdated {
+                        DetailRow(label: "Last Active", value: Formatters.relative(latestUpdated))
+                    }
                     DetailRow(label: "Sessions", value: Formatters.number(project.sessionCount))
                     DetailRow(label: "Messages", value: Formatters.number(project.messageCount))
                     DetailRow(label: "Input Tokens", value: Formatters.tokens(project.inputTokens))
@@ -651,6 +802,61 @@ struct ProjectRow: View {
                 .transition(.opacity)
             }
         }
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+    }
+
+    private var costAndMenu: some View {
+        HStack(spacing: actionSpacing) {
+            Text(Formatters.currency(project.cost))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .frame(width: costColumnWidth, alignment: .trailing)
+
+            projectMenu
+                .frame(width: menuColumnWidth, alignment: .trailing)
+        }
+        .frame(width: costColumnWidth + actionSpacing + menuColumnWidth, alignment: .trailing)
+        .offset(x: isHovered ? 0 : menuColumnWidth + actionSpacing)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+
+    private var projectMenu: some View {
+        Menu {
+            if project.latestSessionID != nil {
+                Button("Continue Latest Session") {
+                    control.continueLatestSession(for: project)
+                }
+            }
+            Button("Start New Session") {
+                control.startNewSession(in: project)
+            }
+            Button("Open in Finder") {
+                control.openInFinder(project.path)
+            }
+            Button("Open in Terminal") {
+                control.openInTerminal(project.path)
+            }
+            Menu("Open In") {
+                ForEach(ProjectOpenApp.allCases) { app in
+                    Button(app.displayName) {
+                        control.openProject(project.path, in: app)
+                    }
+                    .disabled(!app.isInstalled)
+                }
+            }
+            Button("Copy Path") {
+                control.copyToClipboard(project.path)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .opacity(isHovered ? 1 : 0)
+        .allowsHitTesting(isHovered)
     }
 }
 
@@ -668,6 +874,44 @@ struct DetailRow: View {
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
         }
         .padding(.vertical, 2)
+    }
+}
+
+struct ActivityBadge: View {
+    let state: SessionActivityState
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(state.tint)
+                .frame(width: 6, height: 6)
+
+            Text(state.label)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(state.tint)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(state.tint.opacity(0.12), in: Capsule())
+        .fixedSize()
+    }
+}
+
+struct IconActionButton: View {
+    let systemImage: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.borderless)
+        .help(label)
     }
 }
 

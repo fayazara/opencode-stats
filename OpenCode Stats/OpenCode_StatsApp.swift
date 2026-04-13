@@ -14,7 +14,15 @@ struct OpenCode_StatsApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    SettingsWindowManager.shared.show()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }
@@ -23,7 +31,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var cancellable: AnyCancellable?
-    private var refreshTimer: Timer?
     let updaterManager = UpdaterManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,9 +39,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 400, height: 520)
+        popover.contentSize = NSSize(width: 360, height: 520)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
+        popover.delegate = self
+        popover.contentViewController = PopoverHostingController(
             rootView: StatsView()
         )
 
@@ -57,14 +65,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.updateMenuBarCost(stats.todayCost)
             }
 
-        // Refresh stats every 5 minutes
-        OpenCodeDatabase.shared.refresh()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
-            OpenCodeDatabase.shared.refresh()
-        }
+        // Start database monitoring for live menu bar updates
+        OpenCodeDatabase.shared.startMonitoring()
 
         // Start Sparkle updater
         updaterManager.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        OpenCodeDatabase.shared.stopMonitoring()
     }
 
     private func updateMenuBarCost(_ cost: Double) {
@@ -100,6 +109,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             menu.addItem(NSMenuItem.separator())
 
+            let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+            settingsItem.target = self
+            menu.addItem(settingsItem)
+
             let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
             updateItem.target = self
             menu.addItem(updateItem)
@@ -119,10 +132,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if popover.isShown {
                 popover.performClose(nil)
             } else {
+                OpenCodeDatabase.shared.setPopoverVisible(true)
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover.contentViewController?.view.window?.makeKey()
             }
         }
+    }
+
+    @objc private func openSettings() {
+        SettingsWindowManager.shared.show()
     }
 
     @objc private func checkForUpdates() {
@@ -163,5 +181,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+}
+
+extension AppDelegate: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        OpenCodeDatabase.shared.setPopoverVisible(false)
     }
 }
