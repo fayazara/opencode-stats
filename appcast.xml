@@ -8,6 +8,26 @@
     <language>en</language>
 
     <item>
+      <title>OpenCode Stats 0.4</title>
+      <sparkle:version>3</sparkle:version>
+      <sparkle:shortVersionString>0.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Wed, 03 Jun 2026 04:22:19 +0000</pubDate>
+      <description><![CDATA[
+        <h2>What's New in 0.4</h2>
+        <ul>
+          <li>24 hour filter</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/fayazara/opencode-stats/releases/download/v0.4/OpenCode-Stats.dmg"
+        type="application/octet-stream"
+        sparkle:edSignature="X/qlQ2vpMcGBL5Lm6kBEWcIuldosr+TQVs2upMCfvGecUvTAU6OV0mabj49disD6ptGjE5KMVxGis0xqRlMcDQ=="
+        length="2972710"
+      />
+    </item>
+
+    <item>
       <title>OpenCode Stats 0.3</title>
       <sparkle:version>2</sparkle:version>
       <sparkle:shortVersionString>0.3</sparkle:shortVersionString>
