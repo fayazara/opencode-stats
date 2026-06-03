@@ -99,6 +99,7 @@ struct StatsView: View {
             Menu {
                 Button("All Time") { db.daysFilter = nil; db.refresh() }
                 Divider()
+                Button("Last 24 Hours") { db.daysFilter = 1; db.refresh() }
                 Button("Last 7 Days") { db.daysFilter = 7; db.refresh() }
                 Button("Last 30 Days") { db.daysFilter = 30; db.refresh() }
                 Button("Last 90 Days") { db.daysFilter = 90; db.refresh() }
