@@ -14,7 +14,7 @@ Reads directly from the local OpenCode SQLite database -- no server or API keys 
 - Per-project and per-model cost breakdown
 - Recent sessions
 - Installed MCP servers
-- Time filter (7d, 30d, 90d, all time)
+- Time filter (24h, 7d, 30d, 90d, all time)
 
 ## Requirements
 

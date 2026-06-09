@@ -127,9 +127,15 @@ class OpenCodeDatabase: ObservableObject {
     static let shared = OpenCodeDatabase()
 
     var dbPath: String {
+        overriddenDbPath ?? defaultDbPath
+    }
+
+    private let defaultDbPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(home)/.local/share/opencode/opencode.db"
-    }
+    }()
+
+    var overriddenDbPath: String?
 
     var dbExists: Bool {
         FileManager.default.fileExists(atPath: dbPath)
@@ -292,7 +298,7 @@ class OpenCodeDatabase: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: workItem)
     }
 
-    private func loadStats() throws -> OpenCodeStats {
+    func loadStats() throws -> OpenCodeStats {
         guard dbExists else {
             throw DatabaseError.notFound
         }
@@ -366,11 +372,11 @@ class OpenCodeDatabase: ObservableObject {
         if let row = try querySingle(db: db, sql: msgQuery) {
             stats.messageCount = row[0] as? Int ?? 0
             stats.totalCost = row[1] as? Double ?? 0
-            stats.totalInputTokens = (row[2] as? Int64) ?? 0
-            stats.totalOutputTokens = (row[3] as? Int64) ?? 0
-            stats.totalCacheRead = (row[4] as? Int64) ?? 0
-            stats.totalCacheWrite = (row[5] as? Int64) ?? 0
-            stats.totalReasoningTokens = (row[6] as? Int64) ?? 0
+            stats.totalInputTokens = int64Value(row[2] as Any)
+            stats.totalOutputTokens = int64Value(row[3] as Any)
+            stats.totalCacheRead = int64Value(row[4] as Any)
+            stats.totalCacheWrite = int64Value(row[5] as Any)
+            stats.totalReasoningTokens = int64Value(row[6] as Any)
         }
 
         // Total message count (both user + assistant)
@@ -603,10 +609,10 @@ class OpenCodeDatabase: ObservableObject {
                 sessionCount: row[3] as? Int ?? 0,
                 messageCount: row[4] as? Int ?? 0,
                 cost: row[5] as? Double ?? 0,
-                inputTokens: (row[6] as? Int64) ?? 0,
-                outputTokens: (row[7] as? Int64) ?? 0,
-                cacheRead: (row[8] as? Int64) ?? 0,
-                cacheWrite: (row[9] as? Int64) ?? 0,
+                inputTokens: int64Value(row[6] as Any),
+                outputTokens: int64Value(row[7] as Any),
+                cacheRead: int64Value(row[8] as Any),
+                cacheWrite: int64Value(row[9] as Any),
                 latestSessionID: row[10] as? String,
                 latestSessionTitle: row[11] as? String,
                 latestSessionUpdatedAt: latestUpdatedMs.map { Date(timeIntervalSince1970: Double($0) / 1000) }
@@ -616,7 +622,13 @@ class OpenCodeDatabase: ObservableObject {
         // MCP servers from config
         stats.mcpServers = Self.loadMCPServers()
 
-        // Daily costs (last 30 days)
+        // Daily costs (respects daysFilter, caps at 90 days for chart readability)
+        let dailyLookback: Int
+        if let days = daysFilter {
+            dailyLookback = min(days, 90)
+        } else {
+            dailyLookback = 90
+        }
         let dailyCostQuery = """
             SELECT date(m.time_created/1000, 'unixepoch', 'localtime') as day,
                    COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as cost,
@@ -625,7 +637,7 @@ class OpenCodeDatabase: ObservableObject {
             JOIN session s ON s.id = m.session_id
             WHERE json_extract(m.data, '$.role') = 'assistant'
               AND s.parent_id IS NULL
-              AND m.time_created >= \(Int64(Date().addingTimeInterval(-30 * 86400).timeIntervalSince1970 * 1000))
+              AND m.time_created >= \(Int64(Date().addingTimeInterval(-Double(dailyLookback) * 86400).timeIntervalSince1970 * 1000))
             GROUP BY day ORDER BY day
         """
         let dailyRows = try queryRows(db: db, sql: dailyCostQuery)
@@ -700,6 +712,47 @@ class OpenCodeDatabase: ObservableObject {
         }
 
         return stats
+    }
+
+    func totalCostForDays(_ days: Int) -> Double {
+        guard dbExists else { return 0 }
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(dbPath, &db, flags, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_close(db) }
+
+        let cutoff = Int64(Date().addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970 * 1000)
+        let query = """
+            SELECT COALESCE(SUM(json_extract(m.data, '$.cost')), 0)
+            FROM message m
+            JOIN session s ON s.id = m.session_id
+            WHERE json_extract(m.data, '$.role') = 'assistant'
+              AND s.parent_id IS NULL
+              AND m.time_created >= \(cutoff)
+        """
+        guard let row = try? querySingle(db: db, sql: query) else { return 0 }
+        return row[0] as? Double ?? 0
+    }
+
+    func totalCostForCurrentMonth() -> Double {
+        guard dbExists else { return 0 }
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(dbPath, &db, flags, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_close(db) }
+
+        let monthStart = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        let cutoff = Int64(monthStart.timeIntervalSince1970 * 1000)
+        let query = """
+            SELECT COALESCE(SUM(json_extract(m.data, '$.cost')), 0)
+            FROM message m
+            JOIN session s ON s.id = m.session_id
+            WHERE json_extract(m.data, '$.role') = 'assistant'
+              AND s.parent_id IS NULL
+              AND m.time_created >= \(cutoff)
+        """
+        guard let row = try? querySingle(db: db, sql: query) else { return 0 }
+        return row[0] as? Double ?? 0
     }
 
     private func loadLiveState() throws -> OpenCodeLiveState {
@@ -926,6 +979,12 @@ class OpenCodeDatabase: ObservableObject {
             }
         }
         return row
+    }
+
+    private func int64Value(_ value: Any) -> Int64 {
+        if let v = value as? Int64 { return v }
+        if let v = value as? Int { return Int64(v) }
+        return 0
     }
 
     // MARK: - Demo Mode Mock Data

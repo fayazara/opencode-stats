@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import UserNotifications
 
 @main
 struct OpenCode_StatsApp: App {
@@ -27,13 +28,49 @@ struct OpenCode_StatsApp: App {
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var cancellable: AnyCancellable?
     let updaterManager = UpdaterManager()
 
+    private let normalIcon: NSImage = {
+        let img = NSImage(named: "menubar-icon") ?? NSImage()
+        img.size = NSSize(width: 14, height: 18)
+        img.isTemplate = true
+        return img
+    }()
+
+    private let iconSize = NSSize(width: 14, height: 18)
+
+    private func iconTinted(_ color: NSColor) -> NSImage {
+        let img = NSImage(size: iconSize)
+        img.lockFocus()
+        let rect = NSRect(origin: .zero, size: iconSize)
+        normalIcon.draw(in: rect)
+        color.set()
+        rect.fill(using: .sourceAtop)
+        img.unlockFocus()
+        return img
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Re-check budget styling immediately when user changes budget values in Settings
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(budgetDefaultsChanged),
+            name: .budgetSettingsChanged,
+            object: nil
+        )
+
+        // Request notification permission
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, error in
+            if !granted {
+                print("Budget notification permission denied: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
+
         // Hide dock icon
         NSApp.setActivationPolicy(.accessory)
 
@@ -62,7 +99,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         cancellable = OpenCodeDatabase.shared.$stats
             .receive(on: RunLoop.main)
             .sink { [weak self] stats in
-                self?.updateMenuBarCost(stats.todayCost)
+                self?.updateMenuBarCost(stats)
             }
 
         // Start database monitoring for live menu bar updates
@@ -76,14 +113,88 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         OpenCodeDatabase.shared.stopMonitoring()
     }
 
-    private func updateMenuBarCost(_ cost: Double) {
+    private func updateMenuBarCost(_ stats: OpenCodeStats) {
         guard let button = statusItem.button else { return }
+        let cost = stats.todayCost
         if cost > 0 {
             let formatted = String(format: "$%.2f", cost)
             button.title = " \(formatted)"
         } else {
             button.title = ""
         }
+        applyBudgetStyling(stats)
+    }
+
+    private func applyBudgetStyling(_ stats: OpenCodeStats) {
+        guard let button = statusItem.button else { return }
+
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "budgetAlertsEnabled") else {
+            button.image = normalIcon
+            return
+        }
+
+        let calculator = BudgetCalculator(
+            dailyBudget: defaults.double(forKey: "dailyBudget"),
+            monthlyBudget: defaults.double(forKey: "monthlyBudget"),
+            todayCost: stats.todayCost,
+            monthlyCost: OpenCodeDatabase.shared.totalCostForCurrentMonth()
+        )
+
+        switch calculator.overallLevel {
+        case .exceeded:
+            button.image = iconTinted(NSColor.orange)
+        case .approaching:
+            button.image = iconTinted(NSColor(calibratedRed: 1, green: 0.84, blue: 0, alpha: 1))
+        case .none:
+            button.image = normalIcon
+        }
+
+        let todayKey = "budgetNotifiedDaily-\(todayDateKey())"
+        if calculator.dailyLevel.isExceeded && !defaults.bool(forKey: todayKey) {
+            defaults.set(true, forKey: todayKey)
+            sendBudgetNotification(
+                title: "OpenCode Stats — Daily Budget Exceeded",
+                body: String(format: "Daily budget of $%.2f exceeded ($%.2f so far today).", calculator.dailyBudget, calculator.todayCost)
+            )
+        }
+
+        let monthKey = "budgetNotifiedMonthly-\(monthDateKey())"
+        if calculator.monthlyLevel.isExceeded && !defaults.bool(forKey: monthKey) {
+            defaults.set(true, forKey: monthKey)
+            sendBudgetNotification(
+                title: "OpenCode Stats — Monthly Budget Exceeded",
+                body: String(format: "Monthly budget of $%.2f exceeded ($%.2f so far this month).", calculator.monthlyBudget, calculator.monthlyCost)
+            )
+        }
+    }
+
+    private func todayDateKey() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: Date())
+    }
+
+    private func monthDateKey() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM"
+        return df.string(from: Date())
+    }
+
+    private func sendBudgetNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    @objc private func budgetDefaultsChanged() {
+        updateMenuBarCost(OpenCodeDatabase.shared.stats)
     }
 
     @objc private func handleClick() {
@@ -188,4 +299,8 @@ extension AppDelegate: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         OpenCodeDatabase.shared.setPopoverVisible(false)
     }
+}
+
+extension Notification.Name {
+    static let budgetSettingsChanged = Notification.Name("budgetSettingsChanged")
 }
