@@ -51,7 +51,7 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 520, height: 560)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -137,9 +137,74 @@ private struct GeneralSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            settingsSectionDivider()
+
+            BudgetSettingsView()
+
             Spacer(minLength: 0)
         }
         .padding(.top, 16)
+    }
+}
+
+private struct BudgetSettingsView: View {
+    @AppStorage("budgetAlertsEnabled") private var enabled = false
+    @AppStorage("dailyBudget") private var dailyBudget: Double = 0
+    @AppStorage("monthlyBudget") private var monthlyBudget: Double = 0
+
+    var body: some View {
+        VStack(spacing: 0) {
+            settingsFormRow("Budget alerts:") {
+                Toggle(isOn: $enabled) {
+                    Text("Enable cost budget alerts")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .labelsHidden()
+            }
+
+            if enabled {
+                settingsFormRow("Daily budget:") {
+                    HStack(spacing: 4) {
+                        Text("$")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", value: $dailyBudget, format: .number.precision(.fractionLength(2)))
+                            .frame(width: 100)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                        Text("(menu bar turns orange when exceeded)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .fixedSize()
+                    }
+                }
+
+                settingsFormRow("Monthly budget:") {
+                    HStack(spacing: 4) {
+                        Text("$")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", value: $monthlyBudget, format: .number.precision(.fractionLength(2)))
+                            .frame(width: 100)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                        Text("(reset each calendar month)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .fixedSize()
+                    }
+                }
+
+            }
+        }
+        .onChange(of: enabled) { _ in notifyRecheck() }
+        .onChange(of: dailyBudget) { _ in notifyRecheck() }
+        .onChange(of: monthlyBudget) { _ in notifyRecheck() }
+    }
+
+    private func notifyRecheck() {
+        NotificationCenter.default.post(name: .budgetSettingsChanged, object: nil)
     }
 }
 
