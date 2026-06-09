@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Build (Debug)
+        run: |
+          xcodebuild build \
+            -project "OpenCode Stats.xcodeproj" \
+            -scheme "OpenCode Stats" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project "OpenCode Stats.xcodeproj" \
+            -scheme "OpenCode Stats" \
+            -configuration Debug \
+            -testPlan "OpenCode Stats" \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty

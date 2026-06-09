@@ -8,13 +8,15 @@ Reads directly from the local OpenCode SQLite database -- no server or API keys 
 
 - Total cost, sessions, messages, days active
 - Today's spend in the menu bar
-- Daily cost chart (last 30 days)
+- Daily cost chart (last 30 days, respects time filter)
 - Token breakdown (input, output, reasoning, cache read/write)
 - Tool usage
 - Per-project and per-model cost breakdown
-- Recent sessions
+- Recent sessions with Live/Recent/Idle activity badges
 - Installed MCP servers
-- Time filter (7d, 30d, 90d, all time)
+- Time filter (24h, 7d, 30d, 90d, all time)
+- Daily and monthly cost budget alerts (menu bar turns orange, OS notification)
+- CSV and JSON export of all stats
 
 ## Requirements
 
