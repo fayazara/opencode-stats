@@ -12,12 +12,18 @@
 
 /* Begin PBXFileReference section */
 		310B2D6E2F88A19200C6B3D9 /* OpenCode Stats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "OpenCode Stats.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		310B2DA12F8C000000C6B3D9 /* OpenCode StatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "OpenCode StatsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		310B2D702F88A19200C6B3D9 /* OpenCode Stats */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "OpenCode Stats";
+			sourceTree = "<group>";
+		};
+		310B2DA02F8C000000C6B3D9 /* OpenCode StatsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "OpenCode StatsTests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -31,6 +37,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		310B2DA52F8C000000C6B3D9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -39,6 +52,7 @@
 			children = (
 				310B2D702F88A19200C6B3D9 /* OpenCode Stats */,
 				310B2D6F2F88A19200C6B3D9 /* Products */,
+				310B2DA02F8C000000C6B3D9 /* OpenCode StatsTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -46,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				310B2D6E2F88A19200C6B3D9 /* OpenCode Stats.app */,
+				310B2DA12F8C000000C6B3D9 /* OpenCode StatsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,6 +91,28 @@
 			productReference = 310B2D6E2F88A19200C6B3D9 /* OpenCode Stats.app */;
 			productType = "com.apple.product-type.application";
 		};
+		310B2DA22F8C000000C6B3D9 /* OpenCode StatsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 310B2DA92F8C000000C6B3D9 /* Build configuration list for PBXNativeTarget "OpenCode StatsTests" */;
+			buildPhases = (
+				310B2DA42F8C000000C6B3D9 /* Sources */,
+				310B2DA52F8C000000C6B3D9 /* Frameworks */,
+				310B2DA62F8C000000C6B3D9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				310B2DA02F8C000000C6B3D9 /* OpenCode StatsTests */,
+			);
+			name = "OpenCode StatsTests";
+			packageProductDependencies = (
+			);
+			productName = "OpenCode StatsTests";
+			productReference = 310B2DA12F8C000000C6B3D9 /* OpenCode StatsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -83,8 +120,8 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastSwiftUpdateCheck = 2740;
+				LastUpgradeCheck = 2740;
 				TargetAttributes = {
 					310B2D6D2F88A19200C6B3D9 = {
 						CreatedOnToolsVersion = 26.4;
@@ -109,6 +146,7 @@
 			projectRoot = "";
 			targets = (
 				310B2D6D2F88A19200C6B3D9 /* OpenCode Stats */,
+				310B2DA22F8C000000C6B3D9 /* OpenCode StatsTests */,
 			);
 		};
 /* End PBXProject section */
@@ -121,10 +159,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		310B2DA62F8C000000C6B3D9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		310B2D6A2F88A19200C6B3D9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		310B2DA42F8C000000C6B3D9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -169,7 +221,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = TB2S44TFQS;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -188,7 +240,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -233,7 +285,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = TB2S44TFQS;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -246,7 +298,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
@@ -264,7 +316,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = TB2S44TFQS;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -279,6 +331,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.fayazahmed.OpenCode-Stats";
+				PRODUCT_MODULE_NAME = OpenCode_Stats;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -300,7 +353,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = TB2S44TFQS;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -315,6 +368,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.fayazahmed.OpenCode-Stats";
+				PRODUCT_MODULE_NAME = OpenCode_Stats;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -323,6 +377,46 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		310B2DA72F8C000000C6B3D9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.fayazahmed.OpenCode-StatsTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenCode Stats.app/Contents/MacOS/OpenCode Stats";
+				TEST_TARGET_NAME = "OpenCode Stats";
+			};
+			name = Debug;
+		};
+		310B2DA82F8C000000C6B3D9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.fayazahmed.OpenCode-StatsTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenCode Stats.app/Contents/MacOS/OpenCode Stats";
+				TEST_TARGET_NAME = "OpenCode Stats";
 			};
 			name = Release;
 		};
@@ -343,6 +437,15 @@
 			buildConfigurations = (
 				310B2D7A2F88A19300C6B3D9 /* Debug */,
 				310B2D7B2F88A19300C6B3D9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		310B2DA92F8C000000C6B3D9 /* Build configuration list for PBXNativeTarget "OpenCode StatsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				310B2DA72F8C000000C6B3D9 /* Debug */,
+				310B2DA82F8C000000C6B3D9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
