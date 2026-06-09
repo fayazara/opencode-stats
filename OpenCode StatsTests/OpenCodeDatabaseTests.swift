@@ -255,7 +255,7 @@ final class OpenCodeDatabaseTests: XCTestCase {
         exec("INSERT INTO message (id, session_id, time_created, data) VALUES ('\(lastID())', '\(sessionID)', \(ms(thisMonth)), '{\"role\":\"assistant\",\"cost\":7.50,\"tokens\":{},\"providerID\":\"o\",\"modelID\":\"m\"}')")
 
         sut = makeSUT()
-        let cost = try sut.totalCostForCurrentMonth()
+        let cost = sut.totalCostForCurrentMonth()
 
         XCTAssertEqual(cost, 7.50, accuracy: 0.001)
     }
