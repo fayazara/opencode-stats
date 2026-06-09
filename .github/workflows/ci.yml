@@ -18,6 +18,7 @@ jobs:
 
       - name: Build (Debug)
         run: |
+          set -o pipefail
           xcodebuild build \
             -project "OpenCode Stats.xcodeproj" \
             -scheme "OpenCode Stats" \
@@ -28,6 +29,7 @@ jobs:
 
       - name: Test
         run: |
+          set -o pipefail
           xcodebuild test \
             -project "OpenCode Stats.xcodeproj" \
             -scheme "OpenCode Stats" \
