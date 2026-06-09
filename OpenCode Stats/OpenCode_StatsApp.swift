@@ -32,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var cancellable: AnyCancellable?
-    let updaterManager = UpdaterManager()
+    lazy var updaterManager = UpdaterManager()
 
     private let normalIcon: NSImage = {
         let img = NSImage(named: "menubar-icon") ?? NSImage()

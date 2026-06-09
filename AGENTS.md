@@ -40,26 +40,14 @@ All Swift sources live in the `OpenCode Stats/` directory.
 | File                       | Responsibility                                            |
 | -------------------------- | --------------------------------------------------------- |
 | `OpenCode_StatsApp.swift`  | App entry point, `AppDelegate`, menu bar status item      |
-| `ContentView.swift`        | Main popover UI, tabs, time filter menu, budget banner    |
+| `ContentView.swift`        | Main popover UI, tabs, time filter menu                   |
 | `OpenCodeDatabase.swift`   | Reads and aggregates stats from the SQLite database       |
-| `SettingsView.swift`       | Settings window UI (general, actions, about tabs)         |
+| `SettingsView.swift`       | Settings window UI                                        |
 | `SettingsWindowManager.swift` | Manages the settings window lifecycle                  |
 | `UpdaterManager.swift`     | Sparkle auto-update integration                           |
 | `ProviderIcon.swift`       | Provider and model icon rendering                         |
 | `PopoverBackground.swift`  | Popover background styling                                |
-| `Helpers.swift`            | Shared formatting, terminal/app enums, session state      |
-| `BudgetCalculator.swift`   | Daily/monthly budget threshold computation                |
-| `ExportManager.swift`      | CSV/JSON export of stats to file                          |
-
-Tests live in `OpenCode StatsTests/`:
-
-| Test File                          | Coverage                              |
-| ---------------------------------- | ------------------------------------- |
-| `BudgetCalculatorTests.swift`      | BudgetLevel: none/approaching/exceeded |
-| `ExportManagerTests.swift`         | CSV/JSON output format and edge cases |
-| `FormattersTests.swift`            | Currency, tokens, number, percentage, relative date |
-| `OpenCodeDatabaseTests.swift`      | SQL aggregation, filtering, edge cases |
-| `SessionActivityStateTests.swift`  | Live/Recent/Idle boundary conditions  |
+| `Helpers.swift`            | Shared formatting and utility helpers                     |
 
 ## Conventions
 
