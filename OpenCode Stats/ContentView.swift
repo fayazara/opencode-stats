@@ -27,6 +27,7 @@ struct StatsView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            budgetBanner
             Divider()
 
             if !db.dbExists {
@@ -128,6 +129,21 @@ struct StatsView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Menu {
+                Button("Export as CSV...") {
+                    let content = ExportManager.exportSummary(stats: db.stats, sessions: db.stats.recentSessions)
+                    ExportManager.saveToFile(content: content, format: .csv)
+                }
+                Button("Export as JSON...") {
+                    let content = ExportManager.exportJSON(stats: db.stats, sessions: db.stats.recentSessions)
+                    ExportManager.saveToFile(content: content, format: .json)
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -136,6 +152,54 @@ struct StatsView: View {
     private var filterLabel: String {
         if let days = db.daysFilter { return "\(days)d" }
         return "All"
+    }
+
+    private var budgetBanner: some View {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "budgetAlertsEnabled") else { return AnyView(EmptyView()) }
+
+        let dailyBudget = defaults.double(forKey: "dailyBudget")
+        let monthlyBudget = defaults.double(forKey: "monthlyBudget")
+        let calculator = BudgetCalculator(
+            dailyBudget: dailyBudget,
+            monthlyBudget: monthlyBudget,
+            todayCost: db.stats.todayCost,
+            monthlyCost: db.stats.totalCost
+        )
+
+        guard calculator.overallLevel.ratio >= 0.8 else { return AnyView(EmptyView()) }
+
+        let isExceeded = calculator.overallLevel.isExceeded
+        let color: Color = isExceeded ? .red : .yellow
+        let icon = isExceeded ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill"
+
+        let title: String
+        if calculator.dailyLevel.isExceeded && calculator.monthlyLevel.isExceeded {
+            title = "Daily & monthly budget exceeded"
+        } else if calculator.dailyLevel.isExceeded {
+            title = String(format: "Daily budget of $%.2f exceeded", dailyBudget)
+        } else if calculator.monthlyLevel.isExceeded {
+            title = String(format: "Monthly budget of $%.2f exceeded", monthlyBudget)
+        } else if calculator.dailyLevel.isApproaching {
+            title = String(format: "Daily budget at %.0f%%", calculator.dailyRatio * 100)
+        } else {
+            title = String(format: "Monthly budget at %.0f%%", calculator.monthlyRatio * 100)
+        }
+
+        return AnyView(
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(color)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(color.opacity(0.1))
+        )
     }
 
     private var tabBar: some View {
