@@ -18,23 +18,19 @@ jobs:
 
       - name: Build (Debug)
         run: |
-          set -o pipefail
           xcodebuild build \
             -project "OpenCode Stats.xcodeproj" \
             -scheme "OpenCode Stats" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            | xcpretty
+            DEVELOPMENT_TEAM=""
 
       - name: Test
         run: |
-          set -o pipefail
           xcodebuild test \
             -project "OpenCode Stats.xcodeproj" \
             -scheme "OpenCode Stats" \
             -configuration Debug \
             -testPlan "OpenCode Stats" \
             CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            | xcpretty
+            DEVELOPMENT_TEAM=""
