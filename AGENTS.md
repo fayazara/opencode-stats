@@ -15,7 +15,7 @@ so the app can read the database from the user's home directory.
 
 ## Requirements
 
-- macOS 15.5 or newer
+- macOS 15.6 or newer
 - Xcode 26 or newer
 - OpenCode installed and run at least once, so the database exists at
   `~/.local/share/opencode/opencode.db`
