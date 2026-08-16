@@ -474,30 +474,30 @@ class OpenCodeDatabase: ObservableObject {
             modelQuery = """
                 SELECT
                     json_extract(m.data, '$.providerID') as provider,
-                    json_extract(m.data, '$.modelID') as model,
+                    json_extract(m.data, '$.modelID') as model_id,
                     COUNT(*) as cnt,
-                    COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as cost
+                    COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as total_cost
                 FROM message m
                 JOIN session s ON s.id = m.session_id
                 WHERE json_extract(m.data, '$.role') = 'assistant'
                   AND s.parent_id IS NULL
                   AND s.time_created >= \(cutoff)
-                GROUP BY provider, model
-                ORDER BY cost DESC
+                GROUP BY provider, model_id
+                ORDER BY total_cost DESC
             """
         } else {
             modelQuery = """
                 SELECT
                     json_extract(m.data, '$.providerID') as provider,
-                    json_extract(m.data, '$.modelID') as model,
+                    json_extract(m.data, '$.modelID') as model_id,
                     COUNT(*) as cnt,
-                    COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as cost
+                    COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as total_cost
                 FROM message m
                 JOIN session s ON s.id = m.session_id
                 WHERE json_extract(m.data, '$.role') = 'assistant'
                   AND s.parent_id IS NULL
-                GROUP BY provider, model
-                ORDER BY cost DESC
+                GROUP BY provider, model_id
+                ORDER BY total_cost DESC
             """
         }
         let modelRows = try queryRows(db: db, sql: modelQuery)
@@ -521,7 +521,7 @@ class OpenCodeDatabase: ObservableObject {
                     p.name,
                     COUNT(DISTINCT s.id) as session_count,
                     COUNT(m.id) as msg_count,
-                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') ELSE 0 END), 0) as cost,
+                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') ELSE 0 END), 0) as total_cost,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.input') ELSE 0 END), 0) as input_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.output') ELSE 0 END), 0) as output_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') ELSE 0 END), 0) as cache_read,
@@ -550,7 +550,7 @@ class OpenCodeDatabase: ObservableObject {
                 WHERE s.time_created >= \(cutoff)
                 GROUP BY p.id
                 HAVING session_count > 0
-                ORDER BY cost DESC
+                ORDER BY total_cost DESC
             """
         } else {
             projectQuery = """
@@ -560,7 +560,7 @@ class OpenCodeDatabase: ObservableObject {
                     p.name,
                     COUNT(DISTINCT s.id) as session_count,
                     COUNT(m.id) as msg_count,
-                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') ELSE 0 END), 0) as cost,
+                    COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') ELSE 0 END), 0) as total_cost,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.input') ELSE 0 END), 0) as input_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.output') ELSE 0 END), 0) as output_tokens,
                     COALESCE(SUM(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') ELSE 0 END), 0) as cache_read,
@@ -588,7 +588,7 @@ class OpenCodeDatabase: ObservableObject {
                 LEFT JOIN message m ON m.session_id = s.id
                 GROUP BY p.id
                 HAVING session_count > 0
-                ORDER BY cost DESC
+                ORDER BY total_cost DESC
             """
         }
         let projectRows = try queryRows(db: db, sql: projectQuery)
@@ -619,7 +619,7 @@ class OpenCodeDatabase: ObservableObject {
         // Daily costs (last 30 days)
         let dailyCostQuery = """
             SELECT date(m.time_created/1000, 'unixepoch', 'localtime') as day,
-                   COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as cost,
+                   COALESCE(SUM(json_extract(m.data, '$.cost')), 0) as total_cost,
                    COUNT(*) as msgs
             FROM message m
             JOIN session s ON s.id = m.session_id
