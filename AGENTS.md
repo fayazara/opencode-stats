@@ -15,8 +15,8 @@ so the app can read the database from the user's home directory.
 
 ## Requirements
 
-- macOS 15.6 or newer
-- Xcode 26 or newer
+- macOS 14.0 or newer
+- Xcode 16.2 or newer (Xcode 16.2 is the last release that runs on macOS 14.5)
 - OpenCode installed and run at least once, so the database exists at
   `~/.local/share/opencode/opencode.db`
 
@@ -49,6 +49,10 @@ All Swift sources live in the `OpenCode Stats/` directory.
 | `PopoverBackground.swift`  | Popover background styling                                |
 | `Helpers.swift`            | Shared formatting and utility helpers                     |
 
+The app icon ships as `Assets.xcassets/AppIcon.appiconset`. The Icon Composer
+source used for the macOS 26 icon is kept out of the target at
+`Icon/opencode-stats.icon`, because Icon Composer files only build on Xcode 26.
+
 ## Conventions
 
 - Database access is read-only. Open the database with `SQLITE_OPEN_READONLY` and
@@ -58,6 +62,11 @@ All Swift sources live in the `OpenCode Stats/` directory.
   now, and `nil` means all time.
 - App sandbox stays disabled. The entitlements file sets
   `com.apple.security.app-sandbox` to false so the database is readable.
+- The deployment target is macOS 14.0. Do not use APIs introduced after macOS 14
+  without an `if #available` guard.
+- Main actor isolation is written explicitly with `@MainActor`. The project does
+  not set `SWIFT_DEFAULT_ACTOR_ISOLATION`, since that build setting only exists in
+  Xcode 26 and silently drops isolation on older toolchains.
 
 ## Dependencies
 

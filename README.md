@@ -18,7 +18,7 @@ Reads directly from the local OpenCode SQLite database -- no server or API keys 
 
 ## Requirements
 
-- macOS 15.0+
+- macOS 14.0+ (Sonoma or newer)
 - [OpenCode](https://opencode.ai) installed and used at least once
 
 ## Install
@@ -27,7 +27,7 @@ Download the latest DMG from [Releases](https://github.com/fayazara/opencode-sta
 
 ## Build from source
 
-Open `OpenCode Stats.xcodeproj` in Xcode and run.
+Open `OpenCode Stats.xcodeproj` in Xcode 16.2 or newer and run.
 
 ## Author
 
