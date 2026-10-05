@@ -209,6 +209,7 @@ struct OverviewTab: View {
                 MetricCard(title: "Days Active", value: "\(stats.dayCount)", icon: "calendar", color: .orange)
                 MetricCard(title: "Avg Cost/Day", value: Formatters.currency(stats.avgCostPerDay), icon: "chart.line.uptrend.xyaxis", color: .teal)
                 MetricCard(title: "Today", value: Formatters.currency(stats.todayCost), icon: "clock.fill", color: .red)
+                MetricCard(title: "Cost/Message", value: Formatters.currencyPrecise(stats.costPerMessage), icon: "arrow.down.right.circle.fill", color: .indigo)
             }
 
             // Daily cost chart

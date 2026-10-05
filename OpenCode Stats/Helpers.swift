@@ -15,6 +15,15 @@ enum Formatters {
         String(format: "$%.2f", value)
     }
 
+    /// Sub-cent currency. Cost-per-message style averages land well below a
+    /// cent, where `currency` would round everything to $0.00.
+    static func currencyPrecise(_ value: Double) -> String {
+        if abs(value) >= 0.01 {
+            return String(format: "$%.2f", value)
+        }
+        return String(format: "$%.4f", value)
+    }
+
     static func tokens(_ value: Int64) -> String {
         let d = Double(value)
         if d >= 1_000_000_000 {
