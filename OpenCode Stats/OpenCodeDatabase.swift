@@ -18,6 +18,7 @@ struct OpenCodeStats {
     var dayCount: Int = 0
     var totalCost: Double = 0
     var avgCostPerDay: Double = 0
+    var costPerMessage: Double = 0
     var totalInputTokens: Int64 = 0
     var totalOutputTokens: Int64 = 0
     var totalCacheRead: Int64 = 0
@@ -387,6 +388,12 @@ class OpenCodeDatabase: ObservableObject {
         // Avg cost per day
         if stats.dayCount > 0 {
             stats.avgCostPerDay = stats.totalCost / Double(stats.dayCount)
+        }
+
+        // Cost per message. Assistant messages carry the cost, but the message
+        // count includes user turns too, so this is cost per exchange turn.
+        if stats.messageCount > 0 {
+            stats.costPerMessage = stats.totalCost / Double(stats.messageCount)
         }
 
         // Tokens per session (avg + median)
