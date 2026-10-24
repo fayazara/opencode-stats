@@ -209,6 +209,9 @@ struct OverviewTab: View {
                 MetricCard(title: "Days Active", value: "\(stats.dayCount)", icon: "calendar", color: .orange)
                 MetricCard(title: "Avg Cost/Day", value: Formatters.currency(stats.avgCostPerDay), icon: "chart.line.uptrend.xyaxis", color: .teal)
                 MetricCard(title: "Today", value: Formatters.currency(stats.todayCost), icon: "clock.fill", color: .red)
+                MetricCard(title: "Total Tokens", value: Formatters.tokens(totalTokens), icon: "square.stack.3d.up.fill", color: .indigo)
+                MetricCard(title: "Tokens/Session", value: Formatters.tokens(stats.avgTokensPerSession), icon: "chart.bar.fill", color: .brown)
+                MetricCard(title: "Tokens Today", value: Formatters.tokens(stats.todayTokens), icon: "clock.arrow.circlepath", color: .pink)
             }
 
             // Daily cost chart
