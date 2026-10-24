@@ -32,6 +32,7 @@ struct OpenCodeStats {
     var dailyCosts: [DailyCost] = []
     var recentSessions: [RecentSession] = []
     var todayCost: Double = 0
+    var todayTokens: Int64 = 0
     var firstSessionDate: Date?
     var lastSessionDate: Date?
 }
@@ -639,11 +640,16 @@ class OpenCodeDatabase: ObservableObject {
             )
         }
 
-        // Today's cost
+        // Today's cost + token usage (single pass over today's assistant messages)
         let todayStart = Calendar.current.startOfDay(for: Date())
         let todayMs = Int64(todayStart.timeIntervalSince1970 * 1000)
         let todayQuery = """
-            SELECT COALESCE(SUM(json_extract(m.data, '$.cost')), 0)
+            SELECT COALESCE(SUM(json_extract(m.data, '$.cost')), 0),
+                   COALESCE(SUM(json_extract(m.data, '$.tokens.input')), 0),
+                   COALESCE(SUM(json_extract(m.data, '$.tokens.output')), 0),
+                   COALESCE(SUM(json_extract(m.data, '$.tokens.cache.read')), 0),
+                   COALESCE(SUM(json_extract(m.data, '$.tokens.cache.write')), 0),
+                   COALESCE(SUM(json_extract(m.data, '$.tokens.reasoning')), 0)
             FROM message m
             JOIN session s ON s.id = m.session_id
             WHERE json_extract(m.data, '$.role') = 'assistant'
@@ -652,6 +658,11 @@ class OpenCodeDatabase: ObservableObject {
         """
         if let row = try querySingle(db: db, sql: todayQuery) {
             stats.todayCost = row[0] as? Double ?? 0
+            stats.todayTokens = (row[1] as? Int64 ?? 0)
+                + (row[2] as? Int64 ?? 0)
+                + (row[3] as? Int64 ?? 0)
+                + (row[4] as? Int64 ?? 0)
+                + (row[5] as? Int64 ?? 0)
         }
 
         // Recent sessions (last 15)
