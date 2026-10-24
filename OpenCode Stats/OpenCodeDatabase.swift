@@ -305,6 +305,8 @@ class OpenCodeDatabase: ObservableObject {
         }
         defer { sqlite3_close(db) }
 
+        try installSchemaCompatibility(db: db)
+
         var stats = OpenCodeStats()
 
         let dateFilter = daysFilter.map { days -> Int64 in
@@ -685,12 +687,16 @@ class OpenCodeDatabase: ObservableObject {
             let worktree = row[2] as? String ?? ""
             let projectName = (row[3] as? String) ?? URL(fileURLWithPath: worktree).lastPathComponent
             let ts = row[5] as? Int64 ?? (row[5] as? Int).map({ Int64($0) }) ?? 0
+            let slug = row[4] as? String ?? ""
+            // OpenCode V2 leaves `title` NULL until a session is titled; fall back to the slug.
+            let title = (row[1] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? (slug.isEmpty ? "Untitled" : slug)
             return RecentSession(
                 id: row[0] as? String ?? "",
-                title: row[1] as? String ?? "Untitled",
+                title: title,
                 projectName: projectName,
                 directory: worktree,
-                slug: row[4] as? String ?? "",
+                slug: slug,
                 cost: row[6] as? Double ?? 0,
                 messageCount: row[7] as? Int ?? 0,
                 lastUpdated: Date(timeIntervalSince1970: Double(ts) / 1000),
@@ -709,6 +715,8 @@ class OpenCodeDatabase: ObservableObject {
             throw DatabaseError.cannotOpen
         }
         defer { sqlite3_close(db) }
+
+        try installSchemaCompatibility(db: db)
 
         var liveState = OpenCodeLiveState()
 
@@ -858,6 +866,68 @@ class OpenCodeDatabase: ObservableObject {
     }
 
     // MARK: - SQLite Helpers
+
+    /// OpenCode V2 renamed the V1 tables this file queries: `session` became `session_v2`,
+    /// `message` became `session_message`, and `part` rows were folded into each message's
+    /// `content` JSON array. Rather than rewrite every query for both shapes, V2 databases
+    /// get temporary views projecting V2 back into the V1 shape. The temp schema is writable
+    /// even though the database itself is opened read-only, and the views vanish when the
+    /// connection closes. Legacy V1 databases are left untouched.
+    private func installSchemaCompatibility(db: OpaquePointer?) throws {
+        guard !tableExists(db: db, named: "session"),
+              tableExists(db: db, named: "session_v2"),
+              tableExists(db: db, named: "session_message") else {
+            return
+        }
+
+        for statement in Self.v2CompatibilityViews {
+            guard sqlite3_exec(db, statement, nil, nil, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(String(cString: sqlite3_errmsg(db)))
+            }
+        }
+    }
+
+    private static let v2CompatibilityViews = [
+        "CREATE TEMP VIEW session AS SELECT * FROM session_v2",
+        """
+        CREATE TEMP VIEW message AS
+        SELECT
+            m.id AS id,
+            m.session_id AS session_id,
+            m.time_created AS time_created,
+            json_set(
+                m.data,
+                '$.role', m.type,
+                '$.providerID', COALESCE(json_extract(m.data, '$.model.providerID'), json_extract(s.model, '$.providerID'), ''),
+                '$.modelID', COALESCE(json_extract(m.data, '$.model.id'), json_extract(s.model, '$.id'), '')
+            ) AS data
+        FROM session_message m
+        LEFT JOIN session_v2 s ON s.id = m.session_id
+        WHERE m.type IN ('user', 'assistant', 'system', 'synthetic')
+        """,
+        """
+        CREATE TEMP VIEW part AS
+        SELECT
+            m.session_id AS session_id,
+            CASE
+                WHEN json_extract(c.value, '$.type') = 'tool'
+                    THEN json_set(c.value, '$.tool', json_extract(c.value, '$.name'))
+                ELSE c.value
+            END AS data
+        FROM session_message m, json_each(m.data, '$.content') c
+        WHERE json_type(m.data, '$.content') = 'array'
+        """
+    ]
+
+    private func tableExists(db: OpaquePointer?, named name: String) -> Bool {
+        guard let row = try? querySingle(
+            db: db,
+            sql: "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '\(name)'"
+        ) else {
+            return false
+        }
+        return row.first != nil
+    }
 
     private func querySingle(db: OpaquePointer?, sql: String) throws -> [Any]? {
         var stmt: OpaquePointer?

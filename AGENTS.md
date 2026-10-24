@@ -49,6 +49,24 @@ All Swift sources live in the `OpenCode Stats/` directory.
 | `PopoverBackground.swift`  | Popover background styling                                |
 | `Helpers.swift`            | Shared formatting and utility helpers                     |
 
+## Database schema compatibility
+
+OpenCode's local database changed shape in V2: `session` became `session_v2`, `message`
+became `session_message`, and `part` rows now live inside each message's `content` JSON
+array (tool parts also renamed `tool` to `name`). The queries in `OpenCodeDatabase.swift`
+are written against the V1 shape.
+
+`installSchemaCompatibility(db:)` detects a V2 database and installs temporary views that
+project it back to the V1 shape (`session`, `message`, `part`), so the queries never need
+to know which schema they are reading. Temp views are writable even on a read-only
+connection and disappear when the connection closes. V1 databases are left untouched.
+
+Keep new SQL in the V1 shape. If V1 support is ever dropped, delete the compat layer and
+retarget the queries at `session_v2`/`session_message` directly.
+
+Session titles are nullable in V2 until a session is titled, so the recent-sessions
+mapping falls back to the session slug.
+
 ## Conventions
 
 - Database access is read-only. Open the database with `SQLITE_OPEN_READONLY` and
