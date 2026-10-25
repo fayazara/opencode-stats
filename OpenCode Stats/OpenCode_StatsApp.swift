@@ -58,11 +58,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        // Observe today's cost and update menu bar text
+        // Observe stats and keep the menu bar label and tooltip in sync
         cancellable = OpenCodeDatabase.shared.$stats
             .receive(on: RunLoop.main)
             .sink { [weak self] stats in
-                self?.updateMenuBarCost(stats.todayCost)
+                self?.updateMenuBar(with: stats)
             }
 
         // Start database monitoring for live menu bar updates
@@ -76,14 +76,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         OpenCodeDatabase.shared.stopMonitoring()
     }
 
-    private func updateMenuBarCost(_ cost: Double) {
+    private func updateMenuBar(with stats: OpenCodeStats) {
         guard let button = statusItem.button else { return }
-        if cost > 0 {
-            let formatted = String(format: "$%.2f", cost)
-            button.title = " \(formatted)"
-        } else {
-            button.title = ""
-        }
+
+        // Keep the menu bar minimal: today's spend, or nothing when there is none.
+        button.title = stats.todayCost > 0 ? " " + Formatters.currency(stats.todayCost) : ""
+
+        // The tooltip is the only place a menu bar app can explain itself without
+        // permanently spending menu bar space.
+        let summary = """
+        Today: \(Formatters.currency(stats.todayCost))
+        All time: \(Formatters.currency(stats.totalCost)) · \(Formatters.number(stats.sessionCount)) sessions
+        \(Formatters.number(stats.messageCount)) messages across \(stats.dayCount) active days
+        """
+        button.toolTip = summary
+        button.setAccessibilityLabel("OpenCode Stats")
+        button.setAccessibilityHelp(summary)
     }
 
     @objc private func handleClick() {
